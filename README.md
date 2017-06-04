@@ -209,3 +209,139 @@ public class KnightConfig {
 
 Spring通过`应用上下文(Application Context)`装载bean的定义并把它们组装起来。Spring应用上下文全权负责对象的创建和组装。Spring自带了多种应用上下文的实现，它们之间主要的区别就是在于如何加载配置。
 
+```java
+package sia.knights;
+
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+import sia.knights.config.KnightConfig;
+
+public class KnightMain {
+
+    public static void main(String[] args) {
+        AnnotationConfigApplicationContext context = // 加载Spring上下文
+                new AnnotationConfigApplicationContext(KnightConfig.class);
+        Knight knight = context.getBean(Knight.class); // 获取Knight bean
+        knight.embarOnQuest(); // 使用Knight的方法
+        context.close();
+    }
+
+}
+```
+
+main方法基于KnightConfig创建了Spring应用上下文。随后它调用该应用上下文获取一个`ID`为knight的bean。得到Knight对象的引用后，就可以调用方法。
+
+>注意这个类完全不知道我们的英雄其实接收哪种探险任务，而且完全没有意识到这是由BraveKnight来执行的。只有KnightConfig文件知道哪个其实执行哪种探险任务。
+
+#### 1.1.3 应用切面
+
+DI能够让相互协作的软件组件保持`松耦合`，而`面向切面编程(aspect-oriented programming,AOP)`允许把遍布应用各处的功能分离出来形成`可重用`的组件。
+
+面向切面编程往往被定义为促使软件系统实现关注点的分离的一项技术。系统由许多不同的组件组成，每一个组件各负责一块特定功能。除了实现自身核心的功能外，这些组件还经常承担着额外的职责。诸如日志、事务管理和安全这样的系统服务经常融入到自身具有核心业务逻辑的组件中去，这些系统服务通常被称为横切关注点，因为它们会跨越系统的多个组件。
+
+如果将这些关注点分散到多个组件中去，代码会带来双重的复杂性。
+
++ 实现系统关注点功能的代码将会重复出现在多个组件中。这意味着如果你要改变这些关注点的逻辑，必须修改各个模块的相关实现。即使你把这些关注点抽象成一个独立的模块，其他模块只是调用它的方法，但方法的调用还是会重复出现在各个模块中。  
++ 组件会因为那些与自身核心业务无关的代码而变得混乱。一个向地址簿增加地址条目的方法应该只关注如何添加地址，而不应该关注它是不是安全的或者是否需要支持事务。
+
+![业务对象与系统级服务结合过于紧密](./images/1.1.3-1.png)  
+
+>左边的业务对象与系统级服务结合得过于紧密。每个对象不但要知道它需要记录日志、进行安全控制和参与事务，还要亲自执行这些服务。
+
+AOP能够使这些服务`模块化`，并以声明的方式将它们应用到它们需要影响的组件中去。所造成的结果就是这些组件会具有更高的`内聚性`并且会更加`关注自身的业务`，完全不需要了解涉及系统服务所带来复杂性。
+
+>总之，AOP能够确保POJO的简单性。
+
+![安全、事务和日志关注点与核心业务逻辑相分离](./images/1.1.3-2.png)
+
+我们可以把`切面`想象成为覆盖很多组件之上的一个外壳。应用是由那些实现各自业务功能的模块组成的。借助AOP，可以使用各种功能层去`包裹核心业务层`。这些层以声明的方式灵活地应用到系统中，你的核心应用设置根本不知道它们的存在。这是一个非常强大的理念，可以将`安全`、`事务`和`日志关注点`与核心业务逻辑`相分离`。
+
+如何将AOP应用到上例中？  
+吟游诗人这个服务类负责记载其实的所有事迹。
+
+```java
+package sia.knights;
+
+import java.io.PrintStream;
+
+public class Minstrel {
+
+    private PrintStream printStream;
+
+    public Minstrel(PrintStream printStream) {
+        this.printStream = printStream;
+    }
+
+    public void singBeforeQuest() {// 探险前调用
+        printStream.println("探险前..............");
+    }
+
+    public void singAfterQuest() {// 探险后调用
+        printStream.println("探险后..............");
+    }
+}
+```
+
+Minstrel是只有两个方法的简单类。在骑士执行每一个探险任务之前，singBeforeQuest()会被调用；在骑士完成探险任务后，singAfterQuest()会被调用。
+
+BraveKnight和Minstrel组合，BraveKnight必须要调用Minstrel的方法：
+
+```java
+package sia.knights;
+
+public class BraveKnight implements Knight {
+
+    private Quest quest;
+    private Minstrel minstrel;
+
+    public BraveKnight(Quest quest, Minstrel minstrel) {// Quest注入
+        this.quest = quest;
+        this.minstrel = minstrel;
+    }
+
+    @Override
+    public void embarOnQuest() {
+        minstrel.singBeforeQuest();// 骑士需要管理吟游诗人吗？
+        quest.embark();
+        minstrel.singAfterQuest();
+    }
+
+}
+```
+
+>管理他的吟游诗人真的是骑士职责范围内的工作吗？
+
+骑士需要知道吟游诗人的存在，所以就必须把Minstrel注入到BraveKnight中。这使得BraveKnight的代码复杂化了，也会让Minstrel和BraveKnight结合得过于紧密了。如果需要骑士不需要吟游诗人呢，那不是要新建一个类？如果Minstrel为null会怎样，是否需要引入一个空值校验逻辑来覆盖这个场景？
+
+>简单的BraveKnight类开始变得复杂，如果你还需要应对没有吟游诗人时的场景，那代码会变得更加复杂。但利用AOP，你可以声明吟游诗人必须歌颂骑士的探险事迹，而骑士本身并不需要直接访问Minstrel的方法。
+
+要将Minstrel抽象为一个切面，需要在Spring配置文件中声明它。
+
+代码在学习AOP后再补充。。。
+
+#### 1.1.4 使用模板消除样板式代码
+
+`样板式代码(boilerplate code)`--通常为了实现通用和简单的任务，不得不一遍遍重复编写重复代码。
+
+许多Java API，例如JDBC，会涉及编写大量的样板式代码
+
++ 首先要创建一个数据库连接
++ 再创建一个语句查询
++ 进行查询
++ 为了平息JDBC可能出现的怒火，必须捕捉SQLException，这是一个检查型异常，即使它抛出后也做不了太多事情
++ 关闭数据库连接、语句和结果集
++ 依然要捕捉SQLException
+
+JDBC操作要编写的代码千篇一律。只有少量的代码是SQL查询，其他的代码都是JDBC的样板代码。
+
+JDBC不是产生样板式代码的唯一场景。在许多编程场景中往往都会导致类似的样板式代码，JMS、JNDI和使用REST服务通常也涉及大量的重复代码。
+
+>Spring旨在通过模板封装来消除样板式代码。
+
+Spring的JdbcTemplate使得执行数据库操作时，避免传统的JDBC样板代码成为了可能。我们仅仅需要关注查询的`核心逻辑`，而不需要迎合JDBC API的需求。
+
+例子在碰到的时候再补充。。。。
+
+
+
+
