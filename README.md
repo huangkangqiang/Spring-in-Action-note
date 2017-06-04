@@ -82,7 +82,7 @@ public class DamselRescuingKnight implements Knight {
 通过`DI`，对象的依赖关系将有系统中负责协调各对象的第三方组件在创建对象的时候进行设定。对象无需自行创建或管理它们的依赖关系。
 
 如下图，依赖关系将自动注入到需要它们的对象当中去。  
-![DI](./images/1.1.2-1.png)  
+![DI](./images/1.1.2-1.PNG)  
 
 ```java
 package sia.knights;
@@ -244,7 +244,7 @@ DI能够让相互协作的软件组件保持`松耦合`，而`面向切面编程
 + 实现系统关注点功能的代码将会重复出现在多个组件中。这意味着如果你要改变这些关注点的逻辑，必须修改各个模块的相关实现。即使你把这些关注点抽象成一个独立的模块，其他模块只是调用它的方法，但方法的调用还是会重复出现在各个模块中。  
 + 组件会因为那些与自身核心业务无关的代码而变得混乱。一个向地址簿增加地址条目的方法应该只关注如何添加地址，而不应该关注它是不是安全的或者是否需要支持事务。
 
-![业务对象与系统级服务结合过于紧密](./images/1.1.3-1.png)  
+![业务对象与系统级服务结合过于紧密](./images/1.1.3-1.PNG)  
 
 >左边的业务对象与系统级服务结合得过于紧密。每个对象不但要知道它需要记录日志、进行安全控制和参与事务，还要亲自执行这些服务。
 
@@ -252,7 +252,7 @@ AOP能够使这些服务`模块化`，并以声明的方式将它们应用到它
 
 >总之，AOP能够确保POJO的简单性。
 
-![安全、事务和日志关注点与核心业务逻辑相分离](./images/1.1.3-2.png)
+![安全、事务和日志关注点与核心业务逻辑相分离](./images/1.1.3-2.PNG)
 
 我们可以把`切面`想象成为覆盖很多组件之上的一个外壳。应用是由那些实现各自业务功能的模块组成的。借助AOP，可以使用各种功能层去`包裹核心业务层`。这些层以声明的方式灵活地应用到系统中，你的核心应用设置根本不知道它们的存在。这是一个非常强大的理念，可以将`安全`、`事务`和`日志关注点`与核心业务逻辑`相分离`。
 
@@ -342,6 +342,117 @@ Spring的JdbcTemplate使得执行数据库操作时，避免传统的JDBC样板�
 
 例子在碰到的时候再补充。。。。
 
+### 1.2 容纳你的Bean
 
+在基于Spring的应用中，应用对象生存于Spring容器(Container)中。
 
+[应用对象存在于Spring容器中](./iamges/1.3-1.PNG)
 
+Spring容器负责创建对象，装配它们，配置它们并管理它们的整个生命周期，从生存到死亡。
+
+>容器是Spring框架的核心。Spring容器使用DI管理构成应用的组件，它会创建相互协作的组件之间的关联。毫无疑问，这些对象更简单干净，更易于理解，更易于重用并且更易于进行单元测试。
+
+Spring容器的实现类型  
++ bean工厂是最简单的内容器，提供基本的DI支持。
++ 应用上下文基于BeanFactory构建，并提供应用框架级别的服务，例如从属性文件解析文本信息以及发布应用事件给感兴趣的事件监听者。
+
+>bean工厂对大多数应用来说往往太低级，因此应用上下文要比bean工厂更受欢迎。
+
+####　1.2.1 使用应用上下文
+
+Spring自带多种类型的应用上下文： 
+
++ AnnotationConfigApplictionContext：从一个或多个`基于Java的配置类`中加载`Spring应用上下文`
++ AnnotationConfigWebApplicationContext：从一个或多个基于`Java的配置类`中加载`Spring Web应用上下文`
++ ClassPathXmlApplicationContext：从类路径下的一个或多个XML配置文件中加载上下文定义，把应用上下文的定义文件作为类资源
++ FileSystemXmlApplicationContext：从文件系统下的一个或多个XML配置文件中加载上下文定义。
++ XmlWebApplicationContext：从Web应用下的一个或多个XML配置文件中加载上下文定义
+
+应用上下文准备就绪后，就可以调用上下文的getBean()从Spring容器中获取bean。
+
+#### 1.2.2 bean的生命周期
+
+在传统的Java应用中，bean的生命周期很简单。使用Java关键字new进行bean实例化，然后该bean就可以使用了。一旦该bean不再被使用了，则由Java自动进行垃圾回收。
+
+>相比之下，Spring容器的bean的生命周期就显得相对复杂多了。正确理解Spring bean的生命周期非常重要，因为你或许要利用Spring提供的扩展点来自定义bean的创建过程（碰到的时候再添加例子）。
+
+![bean在Spring容器中从创建到销毁的过程](./images/1.2.2-1.PNG)
+
+1. Spring对bean进行实例化
+2. Spring将值和bean的引用注入到bean对应的属性中
+3. 如果bean实现了BeanNameAware接口，Spring将bean的ID传递给setBeanName()
+4. 如果bean实现了BeanFactoryAware接口，Spring将调用setBeanFactory()，将BeanFactory容器实例传入
+5. 如果bean实现了ApplicationContextAware接口，Spring将调用setApplicationContext()，将bean所在的应用上下文的引用传入进来
+6. 如果bean实现了BeanPostProcessor接口，Spring将调用它们的postProccessBeforeInitializingBean()
+7. 如果bean实现了InitializingBean接口，Spring将调用它们的afterPropertiesSet()。类似的，如果bean使用自定义初始化方法，该方法也会被调用
+8. 如果bean实现了BeanPostProcessor接口，Spring将调用它们的postProcessAfterInitialization()
+9. 此时，bean已经准备就绪，可被应用程序使用了。它们将一直驻留在应用上下文中，直到该应用上下文被销毁。
+10. 如果bean实现了DisposableBean接口，Spring将调用它的destroy()。同样，如果bean使用了自定义销毁方法，该方法也会被调用。
+
+>一个空的容器并没有太大的价值，在你把东西放进去之前，它里面什么都没有。为了从Spring的DI中收益，我们必须将应用对象装配进Spring容器中。
+
+### 1.3 俯瞰Spring风景线
+
+>Spring关注于通过DI、AOP和消除样板式代码来简化企业级Java开发。即使这是Spring能做的所有事情，那Spring也值得一用。但是，Spring实际上的功能超乎你的想象。
+
+在Spring框架的范畴内，你会发现Spring简化Java开发的多种方式。但在Spring框架之外还存在一个构建在核心框架之上的庞大生态圈，它将Spring扩展到不同的领域，例如Web服务、REST、移动开发以及NoSQL。
+
+#### 1.3.1 Spring模块
+
+在Spring 4.0中，Spring框架的发布版本包括了20个不同的模块，每个模块会有3个JAR文件（二进制类库、源码的JAR文件以及JavaDoc的JAR文件）。
+
+![Spring框架是由20个不同的模块组成](./images/1.3.1-1.PNG)
+
+这些模块根据其所属的功能可以划分为6类不同的功能。
+
+![Spring框架由6个定义良好的模块分类组成](./images/1.3.1-2.PNG)
+
+>总体而言，这些模块为开发企业级应用提供了所需的一切。但是你也不必将应用建立在整个Spring框架之上，你可以自由地选择适合自身应用需求的Spring模块；当Spring不能满足需求时，完全可以考虑其他选择。事实上，Spring甚至提供了与其他第三方框架和类库的集成点，这样你就不需要自己编写这样的代码了。
+
+##### Spring核心容器
+
+容器是Spring框架最核心的部分，它管理着Spring应用中bean的创建、配置和管理。在该模块中，包括了Spring bean工厂，它为Spring提供了DI的功能。基于bean工厂，我们还会发现有多种Spring应用上下文的实现，每一种都提供了配置Spring的不同方式。
+
+>除了bean工厂和应用上下文，该模块也提供了许多企业服务，例如E-mail、JNDI访问、EJB集成和调度。
+
+所有的Spring模块都构建于核心容器之上。当你配置应用时，其实你隐式地使用了这些类。
+
+##### Spring的AOP模块
+
+在AOP模块中，Spring对面向切面编程提供了丰富的支持。这个模块是Spring应用系统中开发切面的基础。与DI一样，AOP可以帮助应用对象解耦。借助AOP，可以将遍布系统的关注点（例如事务和安全）从它们所应用的对象中解耦出来。
+
+##### 数据访问与集成
+
+使用JDBC编写代码通常会导致大量的样板式代码，例如获得数据库连接、创建语句、处理结果集到最后关闭数据库连接。Spring的JDBC和DAO(Data Access Object)模块抽象了这些样板式代码，使我们的数据库代码变得简单明了，还可以避免因为关闭数据库资源失败而引发的问题。该模块在多种数据库服务的错误信息之上构建了一个语义丰富的异常层，以后我们再也不用解释那些隐晦专有的SQL错误信息了。
+
+而且，Spring提供了ORM模块。Spring的ORM模块建立在对DAO的支持之上，并未多个ORM框架提供了一种构建DAO的简便方式。Spring没有尝试去创建自己的ORM解决方案，而是对许多流行的ORM框架进行了集成，包括Hibernate、Java Persisternce API等。Spring的事务管理支持所有的ORM框架以及JDBC。
+
+##### Web与远程调用
+
+MVC(Model-View-Controller)模式是一种普遍被接受的构建Web应用的方法，它可以帮助用户将界面逻辑与应用逻辑分离。
+
+虽然Spring能够与多种流行的MVC框架进行集成，但它的Web和远程调用模块自带了一个强大的MVC框架，有助于在Web层提升应用的松耦合。
+
+#### 1.3.2 Spring Portfolio
+
+>事实上，Spring远不止Spring框架所下载的那些。整个Spring Portfolio包括多个构建于核心Spring框架之上的框架和类库。概括地讲，整个Spring Portfolio几乎为每一个领域的Java开发都提供了Spring编程模型。
+
+##### Spring Web Flow
+
+>Spring Web Flow建立于Spring MVC框架之上，它为基于流程的会话式Web应用（购物车或者向导功能）提供了支持。
+
+##### Spring Security
+
+>安全对于许多应用都是一个非常关键的切面。利用Spring AOP，Spring Security为Spring应用提供了声明式的安全机制。
+
+##### Spring Data
+
+>Spirng Data使得在Spring中使用任何数据库都变得非常容易。尽管关系型数据库统治企业级应用多年，但是现代化的应在正在认识到并不是所有的数据都适合放在一张表中的行和列中。一种新的数据库种类，通常称之为NoSQL数据库，提供了使用数据的新方法，这些方法比传统的关系型数据库更为合适。
+
+不管你使用文档数据库，如MongoDB，图数据库，如Neo4j，还是传统的关系型数据库，Spring Data都为持久化提供了一种简单的编程模型。这包括为多种数据库类型提供了一种自动化的Repository机制，它负责为你创建Repository的实现。
+
+##### Spring Boot
+
+>Spring极大地简化了众多的编程任务，减少甚至消除了很多样板式代码，如果没有Spring的话，在日常工作中你不得不编写这样的样板代码。Spring Boot是一个崭新的令人兴奋的项目，它以Spring的视角，致力于简化Spring本身。
+
+Spring Boot大量依赖于自动配置技术，它能够消除大部分Spring配置。它还提供了多个Starter项目，不管你使用Maven还是Gradle，这都能减少Spring工程构建文件的大小。
