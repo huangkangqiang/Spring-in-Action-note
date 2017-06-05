@@ -760,3 +760,134 @@ public class CDPlayerTest {
 ```
 
 貌似单元测试不对。。比较的值明明是正确的。。。
+
+>找不到哪里出错了，所以修改了下例子。。。有时间再慢慢拿时间跟它耗，再更正了。。。
+
+### 2.3 通过代码装配bean
+
+>尽管在很多场景下通过组件扫描和自动装配实现Spring的自动化配置是更为推荐的方式，但有时候，自动化配置的方案行不通，因此需要明确配置Spring。比如说，你想要将第三方库中的组件装配到你的应用中，在这种情况下，是没有办法在它的类上添加@Component和@Autowired注解的，因此就不能使用自动化装配的方案了。
+
+在这种情况下，你必须采用显示装配的方式。显式配置有两种可选方案：Java和XML。
+
+在进行显式配置的时候，JavaConfig是更好的方案，因为它更强大、类型安全并且对重构友好。因为它就是Java代码，就像应用程序中的其他Java代码一样。
+
+同时，JavaConfig与其他Java代码的又有所区别。在概念上讲，它与应用程序中的业务逻辑和领域代码是不同的。尽管它与其他的组件一样都是用相同语言进行表述，但JavaConfig是配置代码。这意味着它不应该包含任何业务逻辑，JavaConfig也不应该侵入到业务逻辑代码中。
+
+>尽管不是必须的，但通常将JavaConfig放到单独的包中，使它与其他的应用程序逻辑分离开来，这样对于它的意图就不会产生困惑了。
+
+#### 2.3.1 创建配置类
+
+```java
+package soundSystem;
+
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class CDPlayerConfig {
+
+}
+```
+
+创建JavaConfig类的关键在于为其添加@Configuration注解，@Configuration注解表明这是一个配置类，该类应该包含在Spring应用上下文中如何创建bean的细节。
+
+到这里，都是依赖组件扫描发现Spring应该创建的bean。尽管可以同时使用组件扫描和显式配置，但是我们先关注于显式配置，因此把@ComponentScan注解去掉了。
+
+去掉@ComponentScan注解之后，CDPlayerConfig类就没有任何作用了。运行测试，会发现出现异常BeanCreationExcption。测试的时候希望注入CDPlayer和CompactDisc，但是这些bean根本就没有创建，因为组件扫描不会发现它们。
+
+所以我们要在JavaConfig中声明bean。
+
+#### 2.3.2 声明简单的bean
+
+要在JavaConfig中声明bean，需要编写一个方法，这个方法会创建所需类型的实例，然后给这个方法添加@Bean注解。
+
+```java
+package soundSystem;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class CDPlayerConfig {
+
+    @Bean
+    public CompactDisc sgtPeppers() {
+        return new SgtPeppers();
+    }
+}
+```
+
+@Bean注解会告诉Spring这个方法将会返回一个对象，该对象注册为Spring应用上下文中的bean。方法体中包含了最终产生bean实例的逻辑。
+
+默认情况下，bean的ID与带有@Bean注解的方法名一样。但是可以通过name属性指定一个不同的名字：
+
+```java
+    @Bean(name = "lonelyHeartsClubBand")
+    public CompactDisc sgtPeppers() {
+        return new SgtPeppers();
+    }
+```
+
+在一组CD中随机选择一个CompactDisc来播放：
+
+```java
+    @Bean
+    public CompactDisc randomCD() {
+        int choice = (int) Math.floor(Math.random() * 3);
+        if (choice == 0) {
+            return new SgtPeppers();
+        } else if (choice == 1) {
+            return new Actor();
+        } else {
+            return new LongTimeNoSee();
+        }
+    }
+```
+
+#### 2.3.3 借助JavaConfig实现注入
+
+上例中，声明的CompactDisc bean是非常简单的，它自身没有其他的依赖。但现在，需要声明CDPlayer bean，它依赖于CompactDisc。
+
+在JavaConfig中装配bean的最简单方式就是引用创建bean的方法。
+
+```java
+    @Bean
+    public CDPlayer cdPlayer(){
+        return new CDPlayer(sgtPeppers());
+    }
+```
+
+cdPlayer()像sgtPeppers()一样，同样使用了@Bean注解，这表明这个方法会创建一个bean实例并将其注册到Spring应用上下文中。所创建的bean ID为cdPlayer，与方法的名字相同。
+
+cdPlayer()的方法体与sgtPeppers()稍微有些区别。在这里并没有默认的构造器构建实例，而是调用了需要传入CompactDisc对象的构造器来创建CDPlayer实例。
+
+看起来，CompactDisc是通过调用sgtPeppers()得到的，但是情况并非完全如此。因为sgtPeppers()添加了@Bean注解，Spring将会拦截所有对它的调用，并确保直接返回该方法所创建的bean，而不是每次都对其进行实际的调用。
+
+```java
+    @Bean
+    public CDPlayer cdPlayer() {
+        return new CDPlayer(sgtPeppers());
+    }
+
+    public CDPlayer anotherPlayer() {
+        return new CDPlayer(sgtPeppers());
+    }
+```
+
+假如对sgtPeppers()的调用就像其他的Java方法调用一样的话，那么每个CDPlayer实例都会有一个特有的SgtPeppers实例。
+
+但是，默认情况下，Spring中的bean都是单例的，我们并没有必要为第二个CDPlayer bean创建完全相同的SgtPeppers实例。所以，Spring会拦截对sgtPeppers()的调用并确保返回的是Spring所创建的bean，也就是Spring本身在调用sgtPeppers()所创建的CompactDisc bean。因此，两个CDPlayer bean得到相同的SgtPeppers实例。
+
+通过调用方法来引用bean的方式有点令人困惑，还有一种理解起来更为简单的方式：
+
+```java
+    @Bean
+    public CDPlayer cdPlayer(CompactDisc cd) {
+        return new CDPlayer(cd);
+    }
+```
+
+可以看到，cdPlayer()请求一个CompactDisc作为参数。当Spring调用cdPlayer()创建CDPlayer bean的时候，它会自动装配一个CompactDisc到配置方法之中。然后，方法体就可以按照合适的方式来使用它。借助这种技术，cdPlayer()也能够将CompactDisc注入到CDPlayer的构造器中，而且不用明确引用CompactDisc的@Bean方法。
+
+通常这种方式引用其他的bean是最佳的选择，因为它不会要求将CompactDisc声明到一个配置类中。在这里甚至没有要求CompactDisc必须要在JavaConfig中声明，实际它可以通过组件扫描功能自动发现或者通过XML来进行配置。你可以将配置分散到多个配置类、XML文件以及自动扫描和装配bean之中，只要功能完整健全即可。不管CompactDisc是采用什么方式创建出来的，Spring都会将其传入到配置方法中，并用来创建CDPlayer bean。
+

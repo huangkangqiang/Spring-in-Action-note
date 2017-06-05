@@ -1,5 +1,5 @@
 package soundSystem;
 
 public interface CompactDisc {
-	void play();
+	String play();
 }

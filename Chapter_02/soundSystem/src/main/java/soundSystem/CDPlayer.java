@@ -14,8 +14,8 @@ public class CDPlayer implements MediaPlayer {
 	}
 
 	@Override
-	public void play() {
-		cd.play();
+	public String play() {
+		return cd.play();
 	}
 
 }

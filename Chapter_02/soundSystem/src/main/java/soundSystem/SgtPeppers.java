@@ -9,8 +9,8 @@ public class SgtPeppers implements CompactDisc {
 	private String artist = "The Beatles";
 
 	@Override
-	public void play() {
-		System.out.println("Playing " + title + " by " + artist);
+	public String play() {
+		return "Playing " + title + " by " + artist;
 	}
 
 }
