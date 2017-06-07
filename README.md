@@ -891,3 +891,62 @@ cdPlayer()的方法体与sgtPeppers()稍微有些区别。在这里并没有默�
 
 通常这种方式引用其他的bean是最佳的选择，因为它不会要求将CompactDisc声明到一个配置类中。在这里甚至没有要求CompactDisc必须要在JavaConfig中声明，实际它可以通过组件扫描功能自动发现或者通过XML来进行配置。你可以将配置分散到多个配置类、XML文件以及自动扫描和装配bean之中，只要功能完整健全即可。不管CompactDisc是采用什么方式创建出来的，Spring都会将其传入到配置方法中，并用来创建CDPlayer bean。
 
+## 3. 高级装配
+
+### 3.1 环境与profile
+
+在开发软件的时候，有那么一些场景，就是将应用程序从一个环境迁移到另一个环境。开发阶段中，某些环境相关做法可能并不适合迁移到生产环境中，甚至迁移过去也无法正常工作。数据库配置、加密算法以及与外部系统的集成是跨环境部署时会发生变化的几个典型例子。
+
+比如，在开发阶段，我们可能使用嵌入式数据库，并预先加载测试数据。
+
+暂时跳过。。。
+
+### 3.2 条件化的bean
+
+鸡舍希望一个或多个bean只有在应用的类路径下包含特定的库时才创建。或者希望某个bean只有当另外某个特定的bean也声明了之后才会创建。甚至还可能要求只有某个特定的环境变量设置之后，才会创建某个bean。
+
+@Conditional注解，它可以用到带有@Bean注解的方法上。如果给定的条件计算结果为true，就会创建这个bean，否则的话，这个bean就会被忽略。
+
+```java
+package springinaction.conditional;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Conditional;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class MagicConfig {
+
+	@Bean
+	@Conditional(MagicExistCondition.class) //条件化创建bean
+	public MagicBean magicBean() {
+		return new MagicBean();
+	}
+}
+```
+
+可以看到，@Conditional给定了一个Class，它指明了条件--MagicExistCondition。只有设置了magic环境属性的时候，条件才成立，Spring会实例化这个类，如果环境中没有这个属性，那么MagicBean将会被忽略。
+
+```java
+package springinaction.conditional;
+
+
+import org.springframework.context.annotation.Condition;
+import org.springframework.context.annotation.ConditionContext;
+import org.springframework.core.env.Environment;
+import org.springframework.core.type.AnnotatedTypeMetadata;
+
+public class MagicExistCondition implements Condition {
+
+	@Override
+	public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
+		Environment env=context.getEnvironment();
+		return env.containsProperty("magic");
+	}
+
+}
+```
+
+设置给@Conditional的类可以是任意实现了Condition接口的类型。这个接口实现起来很直接，只需要提供matches()的实现即可。如果matches()返回true，那么就会创建带有@Conditional注解的bean。如果matches()返回false，将不会创建这些bean。
+
+matches()简单但功能强大。它通过给定的ConditionContext对象进而得到Environment对象，并使用这个对象检查环境中是否存在名为magic的环境属性。
