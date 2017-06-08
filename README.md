@@ -950,3 +950,228 @@ public class MagicExistCondition implements Condition {
 设置给@Conditional的类可以是任意实现了Condition接口的类型。这个接口实现起来很直接，只需要提供matches()的实现即可。如果matches()返回true，那么就会创建带有@Conditional注解的bean。如果matches()返回false，将不会创建这些bean。
 
 matches()简单但功能强大。它通过给定的ConditionContext对象进而得到Environment对象，并使用这个对象检查环境中是否存在名为magic的环境属性。
+
+### 3.3 处理自动装配的歧义性
+
+自动装配能够提供很大的帮助，因为它会减少装配应用程序组件时所需要的显式配置的数量。但是，仅有一个bean匹配所需的结果时，自动装配才是有效。如果不仅有一个bean能够匹配结果的话，这种歧义性会阻碍Spring自动装配属性、构造器参数或方法参数。
+
+举个例子：
+
+```java
+public interface Dessert {
+
+}
+
+@Component
+public class Cake implements Dessert {
+
+}
+
+@Component
+public class Cookies implements Dessert {
+
+}
+
+@Component
+public class IceCream implements Dessert {
+
+}
+```
+
+Dessert是一个接口，并且有三个类实现了这个接口。
+
+```java
+package springinaction.ambiguity;
+
+import static org.junit.Assert.assertNotNull;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = DessertConfig.class)
+public class DessertConfigTest {
+
+    @Autowired
+    private Dessert dessert;
+    
+    @Test
+    public void test() {
+        assertNotNull(dessert);
+    }
+
+}
+```
+
+因为这三个类都使用了@Component注解，在组件扫描的时候，能够发现它们并将其创建为Spring应用上下文的bean。然后，当Spring试图自动装配Dessert参数的时候，它并没有唯一、无歧义的可选值。所以，Spring抛出以下异常：
+
+```java
+NoUniqueBeanDefinitionException: No qualifying bean of type [springinaction.ambiguity.Dessert] is defined: expected single matching bean but found 3: cake,cookies,iceCream
+```
+
+#### 3.3.1 表示首选的bean
+
+在声明bean的时候，通过将其中一个可选的bena设置为首选bean能够避免自动装配时的歧义性。当遇到歧义性的时候，Spring会使用首选的bean，而不是其他可选的bean。
+
+可以通过@Primary注解来配置首选bean。
+
+```java
+@Component
+@Primary
+public class Cookies implements Dessert {
+
+}
+```
+
+但是，如果标示了两个或更多的首选bean，那么久无法正常工作了。
+
+#### 3.3.2 限定自动装配的bean
+
+设置首选的bean的局限性在于@Primary注解无法将可选方案的范围限定到唯一一个无歧义性的选项中。它只能标示一个优先的可选方案。当首选的bean数量超过一个时，我们就没有其他的方法进一步缩小可选范围。
+
+Spring的限定符能够在所有可选的bean上进行缩小范围的操作，最终能够达到只有一个bean满足所规定的限制条件。如果将所有的限定符都用上后依然存在歧义性，那么继续使用更多的限定符来缩小选择范围。
+
+@Qualifier注解是使用限定符的主要方式。它可以与@Autowired和@Inject协同使用，在注入的时候指定要注入进去的是哪个bean。
+
+```java
+package springinaction.ambiguity;
+
+import static org.junit.Assert.assertNotNull;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = DessertConfig.class)
+public class DessertConfigTest {
+
+    @Autowired
+    @Qualifier("cake")
+    private Dessert dessert;
+    
+    @Test
+    public void test() {
+        assertNotNull(dessert);
+    }
+
+}
+```
+
+
+为@Qualifier注解所设置的参数就是想要注入的bean的ID。所有使用@Component注解声明的类都会创建为bean，并且bean的ID为首字母为小写的类名。
+
+@Qualifier("cake")所引用的bean要具有String类型的"cake"作为限定符，这个限定符与bean的ID相同。因此，框架会将具有"cake"限定符的bean注入进来。
+
+##### 创建自定义的限定符
+
+我们可以设置自己的限定符，而不是依赖于将bean ID作为限定符。只需要在bean声明上添加@Qualifier注解。
+
+```java
+@Component
+@Qualifier("cold")
+public class IceCream implements Dessert {
+
+}
+```
+
+这种情况下，cold限定符分配给了IceCream bean。因为它没有耦合类名，所以在重构的时候，不用担心类名改变了从而破坏自动装配的问题。在注入的时候，只要引用cold限定符就可以了。
+
+```java
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = DessertConfig.class)
+public class DessertConfigTest {
+
+    @Autowired
+    @Qualifier("cold")
+    private Dessert dessert;
+    
+    @Test
+    public void test() {
+        assertNotNull(dessert);
+    }
+
+}
+```
+
+当出现两个带有"cold"限定符的时候，自动装配的时候又会出现歧义性。我们需要使用更多的限定符来将可选范围限定到一个bean。
+
+如果在注入点和bean定义的地方同时再添加一个@Qualifier注解，那么又会有一个新的问题。
+
+Java不允许在同一个条目上重复出现相同类型的多个注解。
+
+所以可以创建自定义的限定符注解，借助这样的注解来表达所希望限定的特性。比如创建一个自定义的@Cold注解：
+
+```java
+package springinaction.ambiguity;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+import org.springframework.beans.factory.annotation.Qualifier;
+
+@Target({ElementType.CONSTRUCTOR,ElementType.FIELD,ElementType.METHOD,ElementType.TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Qualifier
+public @interface Cold {
+
+}
+```
+
+同样，可以创建一个新的@Creamy注解：
+
+```java
+package springinaction.ambiguity;
+
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+import org.springframework.beans.factory.annotation.Qualifier;
+
+@Target({ElementType.CONSTRUCTOR,ElementType.FIELD,ElementType.METHOD,ElementType.TYPE})
+@Retention(RetentionPolicy.RUNTIME)
+@Qualifier
+public @interface Creamy {
+
+}
+```
+
+在bean声明处使用注解：
+
+```java
+@Component
+@Creamy
+public class IceCream implements Dessert {
+
+}
+```
+
+在注入点使用注解：
+
+```java
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = DessertConfig.class)
+public class DessertConfigTest {
+
+    @Autowired
+    @Creamy
+    private Dessert dessert;
+    
+    @Test
+    public void test() {
+        assertNotNull(dessert);
+    }
+
+}
+```
+
