@@ -1175,3 +1175,49 @@ public class DessertConfigTest {
 }
 ```
 
+### 3.4 bean的作用域
+
+在默认情况下，Spring应用上下文中所有bean都是作为以单例(singleton)的形式创建的。也就是说，不管给定的一个bean被注入到其他bean多少次，每次所注入的都是用一个实例。
+
+在多数情况下，单例bean是很理想的方案。初始化和垃圾回收对象实例所带来的成本只留给一些小规模任务，在这些任务中，让对象保持无状态并且在应用中反复重用这些对象可能并不合理。
+
+有时候，所使用的类是易变的，它们会保持一些状态，因此重用是不安全的。在这种情况下，将class声明为单例的bean就不合适了。因为对象会被污染。。。
+
+Sping定义了多种作用域，可以基于这些作用域创建bean，包括：
+
++ 单例(Singleton)：在整个应用中，只创建bean的一个实例
++ 原型(Prototype)：每次注入或者通过Spring应用上下文获取的时候都会创建一个新的bean实例。
++ 会话(Session)：在Web应用中，为每个会话创建一个bean实例。
++ 请求(Request)：在Web应用中，为每个请求创建一个bean实例。
+
+单例是默认的作用域，但是对于易变的类型，这并不合适。如果选择其他的作用域，要使用@Scope注解，它可以与@Component或@Bean注解一起使用。
+
+例如，使用组件扫描来发现和声明bean，可以在bean的类上使用@Scope注解，将其声明为原型bean：
+
+```java
+@Component
+@Scope(ConfigurableBeanFactory.SCOPE_PROTORYPE)
+public class Notepad{
+
+}
+```
+
+这里，使用ConfigurableBeanFactory类的SCOPE_PROTOTYPE常量设置了原型作用域。也可以使用@Scope("prototype")，但是使用SCOPE_PROTOTYPE常量更加安全并且不容易出错。
+
+#### 3.4.1 使用会话和请求作用域
+
+在Web应用中，如果能够实例化在会话和请求范围内共享的bean，那将是非常有价值的事情。例如，一个bean代表用户的购物车。如果购物车是单例的，那么所有人都共用一个购物车，那是非常不合理的。另一方面，如果购物车是原型，那么在应用中某个地方往购物车中添加商品，在应用的另一个地方可能就不可用了，因为在这里注入的是另外一个原型作用域的购物车。
+
+就购物车bean来说，会话作用域是最合适的，因为它与给定的用户关联性最大。要指定会话作用域，我们可以使用@Scope注解：
+
+```java
+@Component
+@Scope(value=WebApplicationContext.SCOPE_SESSION,proxyMode=ScopedProxyMode.INTERFACE)
+public ShoppingCart cart(){
+
+}
+```
+
+在这里，将value设置成了WebApplicationContext中的SCOPE_SESSION常量。这会告诉Spring为Web应用中的每个会话创建一个ShoppingCart。这会创建多个ShoppingCart bean的实例，但是对于给定的会话只会创建一个实例，在当前会话相关的操作中，这个bean实际上相当于单例。
+
+proxyMode属性以后再详细了解。。。
