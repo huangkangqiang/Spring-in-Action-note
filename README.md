@@ -1407,5 +1407,64 @@ Spring所创建的通知都是用标准的Java类来编写的，定义通知所�
 
 但是方法拦截可以满足绝大部分的需求。如果需要方法拦截以外的连接点拦截功能，那么可以使用AspectJ来补充。
 
+### 4.2 通过切点来选择连接点
+
+切点用于准确定位应该在什么地方应用切面的通知。通知和切点是切面的最基本的元素。
+
+![Spring借助AspectJ的切点表达式语言来定义Spring切面](./iamges/4.2-1.PNG)
+
+在Spring中尝试使用AspectJ其他指示器的时候，就会抛出IllegalArgumentException。
+
+只有execution指示器是实际执行匹配的，而其他的指示器都是用来限制匹配的。这说明execution指示器是在编写切点定义时最主要使用的指示器。在此基础上，使用其他指示器来限制所匹配的切点。
+
+#### 4.2.1 编写切点
+
+```java
+package springinaction.concert;
+
+public interface Performance {
+    public void perform();
+}
+```
+
+Performance可以代表任何类型的现场表演，如舞台剧、电影或音乐会。假设我们想编写Performance的perform()触发的通知。以下是一个切点表达式，这个表达式能够设置当perform()执行时触发通知的调用。
+
+![使用AspectJ切点表达式来选择Performance的perform()](./images/4.2.1-1.PNG)
+
+我们使用execution()指示器选择Performance的perform()。方法表达式以*开始，表明我们并不关心方法返回值的类型。然后，指定全限定类名和方法名。对于方法参数列表，我们使用两个点号(..)表明切点要选择任意的perform()，无论该方法的参数是什么。
+
+假设现在需要配置的切点仅存在concert包。在此场景下，可以使用within()指示器来限制匹配。
+
+![使用within()指示器限制切点范围](./images/4.2.1-2.PNG)
+
+注意：使用了&&操作符把execution()和within()指示器连接在一起形成与(and)关系。类似地，可以使用||、!。可以使用and代替&&，or代替||，not代替!。
+
+#### 4.2.2 在切点中选择bean
+
+Spring还引入了一个新的bean()指示器，它允许在切点表达式使用bean的ID来标识bean。bean()使用bean ID或bean名称作为参数来限制切点只匹配特定的bean。
+
+例如：
+
+```java
+execution(* concert.Performance.perform()) and bean("woodstock")
+```
+
+在这里，希望在执行Performance的perform()应用通知，但限定bean的ID为woodstock。
+
+在某些场景下，限定切点为指定的bean或许很有意义，但我们还可以使用非操作作为除了特定ID以外的bean应用通知：
+
+```java
+execution(* concert.Performance.perform()) and !bean("woodstock")
+```
+
+在此场景下，切面的通知会被编织到所有ID不为woodstock的bean中。
+
+###　4.3　使用注解创建切面
+
+#### 4.3.1 定义切面
+
+如果一场演出没有观众的话，那不能称之为演出。从演出的角度看，观众是非常重要的，但是对演出本身的功能来讲，它并不是核心，这是一个单独的关注点。因此，将观众定义为一个切面。
+
+
 
 
