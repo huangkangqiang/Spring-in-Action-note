@@ -1465,6 +1465,40 @@ execution(* concert.Performance.perform()) and !bean("woodstock")
 
 如果一场演出没有观众的话，那不能称之为演出。从演出的角度看，观众是非常重要的，但是对演出本身的功能来讲，它并不是核心，这是一个单独的关注点。因此，将观众定义为一个切面。
 
+```java
+package springinaction.concert;
+
+import org.aspectj.lang.annotation.AfterReturning;
+import org.aspectj.lang.annotation.AfterThrowing;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
+
+@Aspect
+public class Audience {
+
+    @Before("execution(** springaction.concert.Performance.perform(..))")
+    public void silenceCellPhones() {// 表演前
+        System.out.println("Silencing cell phones");
+    }
+
+    @Before("execution(** springaction.concert.Performance.perform(..))")
+    public void takeSeats() {// 表演前
+        System.out.println("Taking seats");
+    }
+
+    @AfterReturning("execution(** springaction.concert.Performance.perform(..))")
+    public void applause() {// 表演后
+        System.out.println("CLAP CLAP CLAP!!!");
+    }
+
+    @AfterThrowing("execution(** springaction.concert.Performance.perform(..))")
+    public void demandRefund() {// 表演失败后
+        System.out.println("Demanding a refund");
+    }
+}
+```
+
+Audience类使用@AspectJ注解进行了标注
 
 
 
