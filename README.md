@@ -1498,7 +1498,127 @@ public class Audience {
 }
 ```
 
-Audience类使用@AspectJ注解进行了标注
+Audience类使用@AspectJ注解进行了标注。该注解表明Audience不仅仅是一个POJO，还是一个切面。Audience类中的方法都使用注解来定义切面的具体行为。
+
+Audience有四个方法，定义了一个观众在观看演出时可能会做的事情。在演出之前，观众要就坐(takeSeats())并将手机调至静音状态(silenceCellPhones())。如果演出很精彩的话，观众应该会鼓掌喝彩(applause())。不过，如果演出没有达到观众预期，观众会要求退款(demandRefund())。
+
+AspectJ提供了五个注解来定义通知：
+
+![Spring使用AspectJ注解来声明通知方法](./images/4.3.1-1.PNG)
+
+可以使用@Poincut注解能够在一个@AspectJ切面定义可重用的切点。
+
+```java
+package springinaction.concert;
+
+import org.aspectj.lang.annotation.AfterReturning;
+import org.aspectj.lang.annotation.AfterThrowing;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Before;
+import org.aspectj.lang.annotation.Pointcut;
+
+@Aspect
+public class Audience {
+
+    @Pointcut("execution(** springaction.concert.Performance.perform(..))")
+    public void Performance() {
+
+    }
+
+    @Before("performance()")
+    public void silenceCellPhones() {// 表演前
+        System.out.println("Silencing cell phones");
+    }
+
+    @Before("performance()")
+    public void takeSeats() {// 表演前
+        System.out.println("Taking seats");
+    }
+
+    @AfterReturning("performance()")
+    public void applause() {// 表演后
+        System.out.println("CLAP CLAP CLAP!!!");
+    }
+
+    @AfterThrowing("performance()")
+    public void demandRefund() {// 表演失败后
+        System.out.println("Demanding a refund");
+    }
+}
+```
+
+performance()使用了@Pointcut注解。为@Poincut注解设置的值是一个切点表达式，就像之前在通知注解上所设置的那样。通过在performance()上添加@Poincut注解，我们实际上扩展了切点表达式语言，这样就可以在任何的切点表达式中使用performance()了，如果不这样做，需要在这些地方使用更长的切点表达式。
+
+performance()的时机内容并不重要，其实该方法本身只是一个标识，供@Poincut注解依附。
+
+在JavaConfig中启用AspectJ注解的自动代理：
+
+```java
+package springinaction.concert;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
+
+@Configuration
+@ComponentScan
+@EnableAspectJAutoProxy // 启用AspectJ自动代理
+public class ConcertConfig {
+
+    @Bean
+    public Audience audience() {// 声明Audience bean
+        return new Audience();
+    }
+}
+```
+
+AspectJ自动代理都会为使用@AspectJ注解的bean创建一个代理，这个代理会围绕着所有该切面的切点所匹配的bean。在这种情况下，将会为Concert bean创建一个代理，Audience类中的通知方法将会在perform()调用前后执行。
+
+#### 4.3.2 创建环绕通知
+
+环绕通知是最强大的通知类型。它能够让你所编写的逻辑将被通知的目标方法完全包装起来。实际上就像在一个通知方法中同时编写前置通知和后置通知。
+
+```java
+package springinaction.concert;
+
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Pointcut;
+
+@Aspect
+public class Audience {
+
+    @Pointcut("execution(** springaction.concert.Performance.perform(..))")
+    public void Performance() {
+
+    }
+
+    @Around("performance")
+    public void watchPerformance(ProceedingJoinPoint jp) {
+        try {
+            System.out.println("Silencing cell phones");
+            System.out.println("Taking seats");
+            jp.proceed();
+            System.out.println("CLAP CLAP CLAP");
+        } catch (Throwable e) {
+            System.out.println("Demanding a refund");
+        }
+    }
+}
+```
+
+@Around注解表明watchPerformance()会作为performance()切点的环绕通知。在这个通知中，观众在演出之前会将手机调至静音并就坐，演出结束后会鼓掌喝彩。演出失败，观众会要求退款。
+
+这个通知所达到的效果与之前的前置通知和后置通知是一样的。但是，现在位于同一个方法中，不像之前那样分散在四个不同的通知方法中。
+
+需要注意的是，它接受ProccedingJointPoint作为参数。这个对象必须要有的，因为你要在通知中通过它来调用被通知的方法。通知方法中可以做任何的事情，当要将控制权交给被通知的方法时，它需要调用ProceedingJoinPoint的proceed()。
+
+如果不调用proceed()，那么通知实际上会阻塞对被通知方法的调用。
+
+有意思的是，你可以不调用proceed()，从而阻塞对被通知方法的访问，与之类似，你也可以在通知中对它进行多次调用。要这样做的一个场景就是实现重试逻辑，也就是在被通知方法失败后，进行重复尝试。
+
 
 
 
