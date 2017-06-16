@@ -1619,6 +1619,109 @@ public class Audience {
 
 有意思的是，你可以不调用proceed()，从而阻塞对被通知方法的访问，与之类似，你也可以在通知中对它进行多次调用。要这样做的一个场景就是实现重试逻辑，也就是在被通知方法失败后，进行重复尝试。
 
+#### 4.3.3 处理通知中的参数
+
+如果切面所通知的方法确实有参数怎么办？切面能访问和使用传递给被通知方法的参数吗？
+
+假设想要统计电影院播放的某部电影的次数。一种方法就是修改perform()，直接在每次播放的使用记录这个数量。但是，记录电影的播放次数与播放本身是不同的关注点，因此不应该属于perform()。这应该是切面完成的工作。
+
+```java
+package springinaction.concert;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import org.aspectj.lang.annotation.Before;
+import org.aspectj.lang.annotation.Pointcut;
+
+@Aspect
+public class PerformanceCounter {
+
+    private Map<String, Integer> performanceCounts = new HashMap<String, Integer>();
+
+    @Pointcut("execution(* springaction.concert.Cinema.perform(String)) " + "&& args(name)") // 通知perform()
+    public void performed(String name) {
+
+    }
+
+    @Before("performed(name)")
+    public void countPerform(String name) {
+        Integer curCount = getPlayCount(name);
+        performanceCounts.put(name, curCount + 1);
+    }
+
+    private Integer getPlayCount(String name) {
+        return performanceCounts.containsKey(name) ? performanceCounts.get(name) : 0;
+    }
+}
+```
+
+需要关注的是切点表达式中的args(name)限定符。它表明传递给perform()方法的int类型参数也会传递到通知中去。参数的名称name也与切点方法签名中的参数相匹配。
+
+这个参数会传递到通知方法中，这个通知方法是通过@Before注解和命名切点performed(name)定义的。切点定义中的参数与切点方法中的参数名称是一样的，这样就完成了从命名切点到通知方法的参数转移。
+
+```java
+package springinaction.concert;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
+
+@Configuration
+@EnableAspectJAutoProxy
+public class PerformanceCounterConfig {
+
+    @Bean
+    public Performance cinema() {
+        return new Cinema();
+    }
+
+    public PerformanceCounter counter() {
+        return new PerformanceCounter();
+    }
+}
+```
+
+测试：
+
+```java
+package springinaction.concert;
+
+import static org.junit.Assert.*;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.ContextConfiguration;
+import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+
+@RunWith(SpringJUnit4ClassRunner.class)
+@ContextConfiguration(classes = PerformanceCounterConfig.class)
+public class PerformanceCounterTest {
+
+    @Autowired
+    private Performance performance;
+
+    @Autowired
+    private PerformanceCounter counter;
+
+    @Test
+    public void test() {
+        performance.perform("当幸福来敲门");
+        performance.perform("当幸福来敲门");
+        performance.perform("当幸福来敲门");
+        performance.perform("摩登保镖");
+        performance.perform("当幸福来敲门");
+        performance.perform("当幸福来敲门");
+
+        assertEquals(5, counter.getPlayCount("当幸福来敲门"));
+        assertEquals(0, counter.getPlayCount("赌神"));
+        assertEquals(1, counter.getPlayCount("摩登保镖"));
+    }
+
+}
+```
+
 
 
 
